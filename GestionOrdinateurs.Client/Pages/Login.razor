@@ -16,6 +16,9 @@
     <label for="login" class="form-label">Login</label>
     <InputText id="login" class="form-control" @bind-Value="login" />
 
+    <label for="password" class="form-label mt-3">Mot de passe</label>
+    <InputText id="password" type="password" class="form-control" @bind-Value="password" />
+
     @if (!string.IsNullOrWhiteSpace(errorMessage))
     {
         <div class="alert alert-danger mt-3">@errorMessage</div>
@@ -28,6 +31,7 @@
 
 @code {
     private string login = string.Empty;
+    private string password = string.Empty;
     private string? errorMessage;
     private bool isConnecting;
 
@@ -39,19 +43,23 @@
         try
         {
             var client = HttpClientFactory.CreateClient("AuthenticationApi");
+            // Ancien login (TP5) : api/Authentication avec le login seul
+            // Nouveau login (TP6) : api/Auth/login, AuthentificationApi demande le token à Keycloak
             using var response = await client.PostAsJsonAsync(
-                "api/Authentication",
-                new LoginRequest(login));
+                "api/Auth/login",
+                new LoginRequest(login, password));
 
             if (!response.IsSuccessStatusCode)
             {
-                errorMessage = response.StatusCode == System.Net.HttpStatusCode.NotFound
-                    ? "Cet utilisateur n'existe pas."
+                errorMessage = response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                    ? "Login ou mot de passe incorrect."
                     : "La connexion a échoué.";
                 return;
             }
 
-            var token = (await response.Content.ReadAsStringAsync()).Trim();
+            // Réponse de Keycloak : on ne garde que l'access_token
+            var tokenResponse = await response.Content.ReadFromJsonAsync<TokenResponse>();
+            var token = tokenResponse?.AccessToken;
             if (string.IsNullOrWhiteSpace(token))
             {
                 errorMessage = "La réponse de l'API d'authentification est invalide.";
@@ -71,5 +79,8 @@
             isConnecting = false;
         }
     }
-    private record LoginRequest(string Login);
+    private record LoginRequest(string Username, string Password);
+
+    private record TokenResponse(
+        [property: System.Text.Json.Serialization.JsonPropertyName("access_token")] string AccessToken);
 }

@@ -22,17 +22,22 @@ services:
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_HOSTNAME: localhost
-      KC_HOSTNAME_PORT: 8180
+      # URL publique de Keycloak
+      KC_HOSTNAME: http://localhost:8180
+      # Autorise les conteneurs 
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
-      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
+      # Stockage des données Keycloak dans PostgreSQL 
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/GestionOrdinateursDb
+      KC_DB_USERNAME: user
+      KC_DB_PASSWORD: 1234
     command: start-dev
     ports:
       - "8180:8080"
-    volumes:
-      - keycloak_data:/opt/keycloak/data
+    depends_on:
+      - postgres
     networks:
       - appnet
 
@@ -50,6 +55,9 @@ services:
       ASPNETCORE_URLS: http://+:5199
       # Dans Docker, "localhost" = le conteneur lui-même : on appelle l'API par son nom de service
       Services__GestionOrdinateursApi: http://gestionordinateurs-api:5087/
+      # Keycloak appelé par son nom de service 
+      Keycloak__BaseUrl: http://keycloak:8080
+      Keycloak__ClientSecret: ${KEYCLOAK_CLIENT_SECRET}
     depends_on:
       - postgres
       - keycloak
@@ -69,6 +77,10 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:5087
+      # Les clés publiques de Keycloak sont récupérées via le nom du service Docker
+      Keycloak__InternalUrl: http://keycloak:8080
+    depends_on:
+      - keycloak
     networks:
       - appnet
 
@@ -109,7 +121,6 @@ services:
 
 volumes:
   postgres_data:
-  keycloak_data:
 
 networks:
   appnet:

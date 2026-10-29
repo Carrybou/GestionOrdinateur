@@ -46,25 +46,65 @@ builder.Services.AddSwaggerGen(c =>
 });
 builder.Services.AddOpenApi();
 
-var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("La clé Jwt:Key est absente de la configuration.");
-var key = Encoding.ASCII.GetBytes(jwtKey);
+// Ancienne validation (TP5) : token signé par AuthentificationApi avec la clé Jwt:Key
+// var jwtKey = builder.Configuration["Jwt:Key"]
+//     ?? throw new InvalidOperationException("La clé Jwt:Key est absente de la configuration.");
+// var key = Encoding.ASCII.GetBytes(jwtKey);
+//
+// builder.Services.AddAuthentication(options =>
+// {
+//     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+//     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+// }).AddJwtBearer(options =>
+// {
+//     options.RequireHttpsMetadata = false;
+//     options.SaveToken = true;
+//     options.TokenValidationParameters = new TokenValidationParameters
+//     {
+//         ValidateIssuerSigningKey = true,
+//         IssuerSigningKey = new SymmetricSecurityKey(key),
+//         ValidateIssuer = false,
+//         ValidateAudience = false
+//     };
+// });
+
+// Nouvelle validation (TP6) : token délivré par Keycloak
+// URL interne pour joindre Keycloak (localhost:8180 en local, keycloak:8080 sous Docker)
+var keycloakInternalUrl = builder.Configuration["Keycloak:InternalUrl"];
 
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options =>
+})
+.AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false;
-    options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
+        // Le token doit avoir été émis par notre realm Keycloak
+        ValidateIssuer = true,
+        ValidIssuer = $"{builder.Configuration["Keycloak:BaseUrl"]}/realms/{builder.Configuration["Keycloak:Realm"]}",
+
+        ValidateAudience = true,
+        ValidAudience = "account",
+
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = false,
-        ValidateAudience = false
+        ValidateLifetime = false,
+
+        // Récupère les clés publiques de Keycloak pour vérifier la signature du token
+        IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+        {
+            var client = new HttpClient();
+            var keyUri = $"{keycloakInternalUrl}/realms/{builder.Configuration["Keycloak:Realm"]}/protocol/openid-connect/certs";
+            var response = client.GetAsync(keyUri).Result;
+            var keys = new JsonWebKeySet(response.Content.ReadAsStringAsync().Result);
+
+            return keys.GetSigningKeys();
+        }
     };
+
+    options.RequireHttpsMetadata = false; // Uniquement en développement
+    options.SaveToken = true;
 });
 builder.Services.AddAuthorization();
 

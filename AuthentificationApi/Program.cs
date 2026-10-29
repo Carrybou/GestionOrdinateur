@@ -1,4 +1,5 @@
 using System.Text;
+using AuthentificationApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
@@ -21,6 +22,8 @@ builder.Services.AddHttpClient("GestionOrdinateursApi", client =>
 {
     client.BaseAddress = new Uri(apiUrl);
 });
+// Service qui demande les tokens à Keycloak (HttpClient injecté)
+builder.Services.AddHttpClient<KeycloakAuthService>();
 builder.Services.AddSwaggerGen();
 builder.Services.AddOpenApi();
 // Configure JWT authentication 
