@@ -1,0 +1,31 @@
+name: CI GestionOrdinateurs
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  # Restauration, build et tests unitaires (aucun compte Docker nécessaire)
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore GestionOrdinateurs.slnx
+
+      - name: Build solution
+        run: dotnet build GestionOrdinateurs.slnx --no-restore
+
+      - name: Run tests
+        run: dotnet test GestionOrdinateurs.Tests/GestionOrdinateurs.Tests.csproj --no-build --verbosity normal
