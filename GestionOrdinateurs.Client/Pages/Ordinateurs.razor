@@ -1,0 +1,65 @@
+@page "/ordinateurs"
+
+@using GestionOrdinateurs.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Ordinateurs</PageTitle>
+
+<h1>Ordinateurs</h1>
+
+@if (isLoading)
+{
+    <p>Chargement...</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nom</th>
+                <th>Prix</th>
+                <th>Devise</th>
+                <th>Vendu</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var ordinateur in ordinateurs)
+            {
+                <tr>
+                    <td>@ordinateur.Nom</td>
+                    <td>@ordinateur.Prix</td>
+                    <td>€</td>
+                    <td>@(ordinateur.Vendu ? "Oui" : "Non")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Ordinateur> ordinateurs = [];
+    private string? errorMessage;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("GestionOrdinateursApi");
+            ordinateurs = await client.GetFromJsonAsync<List<Ordinateur>>(
+                "api/ordinateurs/ordinateurs") ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "Impossible de récupérer les ordinateurs. Connectez-vous avant de consulter cette page.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

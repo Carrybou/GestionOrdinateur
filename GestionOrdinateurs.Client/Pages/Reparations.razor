@@ -1,0 +1,72 @@
+@page "/reparations"
+
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Réparations</PageTitle>
+
+<h1>Historique des réparations</h1>
+
+@if (isLoading)
+{
+    <p>Chargement...</p>
+}
+else if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Ordinateur</th>
+                <th>Technicien</th>
+                <th>Type de réparation</th>
+                <th>Date d'intervention</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var reparation in reparations)
+            {
+                <tr>
+                    <td>@reparation.NomOrdinateur</td>
+                    <td>@reparation.Technicien</td>
+                    <td>@reparation.TypeReparation</td>
+                    <td>@reparation.DateIntervention</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<HistoriqueReparation> reparations = [];
+    private string? errorMessage;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("GestionOrdinateursApi");
+            reparations = await client.GetFromJsonAsync<List<HistoriqueReparation>>(
+                "api/reparations/historique") ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "Impossible de récupérer l'historique des réparations. Connectez-vous avant de consulter cette page.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private sealed class HistoriqueReparation
+    {
+        public string NomOrdinateur { get; set; } = string.Empty;
+        public string Technicien { get; set; } = string.Empty;
+        public string TypeReparation { get; set; } = string.Empty;
+        public DateTime DateIntervention { get; set; }
+    }
+}

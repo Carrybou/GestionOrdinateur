@@ -1,0 +1,75 @@
+@page "/login"
+
+@using System.Net.Http.Json
+@using GestionOrdinateurs.Client.Services
+@using Blazored.SessionStorage
+@inject IHttpClientFactory HttpClientFactory
+@inject ISessionStorageService SessionStorage
+@inject JwtAuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Connexion</PageTitle>
+
+<h1>Connexion</h1>
+
+<div class="col-md-6">
+    <label for="login" class="form-label">Login</label>
+    <InputText id="login" class="form-control" @bind-Value="login" />
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger mt-3">@errorMessage</div>
+    }
+
+    <button class="btn btn-primary mt-3" @onclick="Connect" disabled="@isConnecting">
+        @(isConnecting ? "Connexion..." : "Se connecter")
+    </button>
+</div>
+
+@code {
+    private string login = string.Empty;
+    private string? errorMessage;
+    private bool isConnecting;
+
+    private async Task Connect()
+    {
+        errorMessage = null;
+        isConnecting = true;
+
+        try
+        {
+            var client = HttpClientFactory.CreateClient("AuthenticationApi");
+            using var response = await client.PostAsJsonAsync(
+                "api/Authentication",
+                new LoginRequest(login));
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = response.StatusCode == System.Net.HttpStatusCode.NotFound
+                    ? "Cet utilisateur n'existe pas."
+                    : "La connexion a échoué.";
+                return;
+            }
+
+            var token = (await response.Content.ReadAsStringAsync()).Trim();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                errorMessage = "La réponse de l'API d'authentification est invalide.";
+                return;
+            }
+
+            await SessionStorage.SetItemAsync("jwtToken", token);
+            AuthenticationStateProvider.NotifyUserAuthentication(token);
+            Navigation.NavigateTo("/");
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "L'API d'authentification est inaccessible.";
+        }
+        finally
+        {
+            isConnecting = false;
+        }
+    }
+    private record LoginRequest(string Login);
+}
