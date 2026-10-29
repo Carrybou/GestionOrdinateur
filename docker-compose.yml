@@ -1,0 +1,115 @@
+services:
+
+  # Base de données PostgreSQL 
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: GestionOrdinateursDb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - appnet
+
+  # Serveur d'identité Keycloak (OIDC), accessible sur http://localhost:8180
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    container_name: keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 8180
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+    command: start-dev
+    ports:
+      - "8180:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    networks:
+      - appnet
+
+  # API d'authentification (login / génération du JWT)
+  authentification-api:
+    image: ${DOCKER_ACCOUNT}/authentificationapi:latest
+    build:
+      context: .
+      dockerfile: AuthentificationApi/Dockerfile
+    container_name: authentification_api
+    ports:
+      - "5199:5199"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5199
+      # Dans Docker, "localhost" = le conteneur lui-même : on appelle l'API par son nom de service
+      Services__GestionOrdinateursApi: http://gestionordinateurs-api:5087/
+    depends_on:
+      - postgres
+      - keycloak
+      - gestionordinateurs-api
+    networks:
+      - appnet
+
+  # API métier (ordinateurs, réparations...) avec sa base SQLite
+  gestionordinateurs-api:
+    image: ${DOCKER_ACCOUNT}/gestionordinateurs-api:latest
+    build:
+      context: .
+      dockerfile: GestionOrdinateurs.API/Dockerfile
+    container_name: gestionordinateurs_api
+    ports:
+      - "5087:5087"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5087
+    networks:
+      - appnet
+
+  # Gateway YARP : point d'entrée du front vers l'API métier
+  gestionordinateurs-gateway:
+    image: ${DOCKER_ACCOUNT}/gestionordinateurs-gateway:latest
+    build:
+      context: .
+      dockerfile: GestionOrdinateurs.Gateway/Dockerfile
+    container_name: gestionordinateurs_gateway
+    ports:
+      - "5010:5010"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5010
+      # Remplace l'adresse localhost de appsettings.json par le nom du service Docker de l'API
+      ReverseProxy__Clusters__gestion-ordinateurs-api__Destinations__api__Address: http://gestionordinateurs-api:5087/
+    depends_on:
+      - gestionordinateurs-api
+    networks:
+      - appnet
+
+  # Front Blazor WebAssembly servi par nginx sur http://localhost:5000
+  gestionordinateurs-client:
+    image: ${DOCKER_ACCOUNT}/gestionordinateurs-client:latest
+    build:
+      context: .
+      dockerfile: GestionOrdinateurs.Client/Dockerfile
+    container_name: gestionordinateurs_client
+    # Port 5000 du Mac occupé par AirPlay : le front est exposé sur http://localhost:5001
+    ports:
+      - "5001:5000"
+    depends_on:
+      - authentification-api
+      - gestionordinateurs-gateway
+    networks:
+      - appnet
+
+volumes:
+  postgres_data:
+  keycloak_data:
+
+networks:
+  appnet:

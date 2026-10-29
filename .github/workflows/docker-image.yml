@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+env:
+  # Préfixe des images du docker-compose (le .env local n'est pas versionné, pas de compte Docker Hub)
+  DOCKER_ACCOUNT: local
+
 jobs:
 
   # Restauration, build et tests unitaires (aucun compte Docker nécessaire)
@@ -30,7 +34,7 @@ jobs:
       - name: Run tests
         run: dotnet test GestionOrdinateurs.Tests/GestionOrdinateurs.Tests.csproj --no-build --verbosity normal
 
-  # Construction des images Docker pour vérifier les Dockerfile (sans push : pas de compte Docker Hub)
+  # Construction de toutes les images via le docker-compose.yml (sans push : pas de compte Docker Hub)
   docker:
     runs-on: ubuntu-latest
     needs: tests
@@ -39,14 +43,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Build AuthentificationApi
-        run: docker build -t authentificationapi:latest -f AuthentificationApi/Dockerfile .
-
-      - name: Build GestionOrdinateurs.API
-        run: docker build -t gestionordinateurs-api:latest -f GestionOrdinateurs.API/Dockerfile .
-
-      - name: Build GestionOrdinateurs.Gateway
-        run: docker build -t gestionordinateurs-gateway:latest -f GestionOrdinateurs.Gateway/Dockerfile .
-
-      - name: Build GestionOrdinateurs.Client
-        run: docker build -t gestionordinateurs-client:latest -f GestionOrdinateurs.Client/Dockerfile .
+      - name: Build images
+        run: docker compose build
